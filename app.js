@@ -30,6 +30,12 @@ let avatar = null;
 let fallback = null;
 let wave = 0;
 let talking = 0;
+let walking = true;
+let blink = 0;
+let nextBlink = 2.5;
+let rig = null;
+let mixer = null;
+const clock = new THREE.Clock();
 const modelLoader = new GLTFLoader();
 
 const material = (color, roughness = 0.8) =>
@@ -67,16 +73,26 @@ function makePreview() {
   beard.position.set(0, 2.25, 0.39);
   g.add(beard);
 
+  const eyes = [];
   for (const x of [-0.19, 0.19]) {
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), eye);
     e.position.set(x, 2.8, 0.65);
     g.add(e);
+    eyes.push(e);
   }
 
   const nose = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), skin);
   nose.scale.set(0.7, 1.4, 0.8);
   nose.position.set(0, 2.6, 0.72);
   g.add(nose);
+
+  const mouth = new THREE.Mesh(
+    new THREE.SphereGeometry(0.13, 16, 10),
+    material(0x37151a, 0.7)
+  );
+  mouth.scale.set(1.5, 0.35, 0.45);
+  mouth.position.set(0, 2.38, 0.78);
+  g.add(mouth);
 
   const arms = [];
   for (const x of [-1.08, 1.08]) {
@@ -87,17 +103,19 @@ function makePreview() {
     arms.push(a);
   }
 
+  const legs = [];
   for (const x of [-0.35, 0.35]) {
     const l = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 1.8, 8, 12), suit);
     l.position.set(x, -0.75, 0);
     g.add(l);
+    legs.push(l);
 
     const s = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.18, 0.8), material(0x080808));
     s.position.set(x, -1.8, 0.18);
     g.add(s);
   }
 
-  g.userData.arms = arms;
+  g.userData.animation = { arms, legs, eyes, mouth };
   return g;
 }
 
@@ -115,10 +133,49 @@ function fitModel(model) {
   );
 }
 
-function setAvatar(model) {
+function setAvatar(model, animations = []) {
   if (avatar) root.remove(avatar);
+  if (mixer) mixer.stopAllAction();
   avatar = model;
+  rig = createRig(model);
+  mixer = animations.length ? new THREE.AnimationMixer(model) : null;
+  if (mixer) mixer.clipAction(animations[0]).play();
   root.add(avatar);
+}
+
+function createRig(model) {
+  const result = {
+    arms: [],
+    legs: [],
+    eyes: [],
+    mouth: [],
+    morphs: []
+  };
+  const names = (object) => `${object.name} ${object.parent?.name || ''}`.toLowerCase();
+
+  if (model.userData.animation) {
+    result.arms = model.userData.animation.arms;
+    result.legs = model.userData.animation.legs;
+    result.eyes = model.userData.animation.eyes;
+    result.mouth = [model.userData.animation.mouth];
+  }
+
+  model.traverse((object) => {
+    const name = names(object);
+    if (object.isBone) {
+      if (/arm|hand|shoulder/.test(name)) result.arms.push(object);
+      if (/leg|thigh|shin|foot/.test(name)) result.legs.push(object);
+    }
+    if (object.isMesh) {
+      if (/eye|eyelid/.test(name)) result.eyes.push(object);
+      if (/mouth|lip|jaw/.test(name)) result.mouth.push(object);
+      if (object.morphTargetDictionary) result.morphs.push(object);
+    }
+  });
+
+  result.armRest = result.arms.map((part) => part.rotation.clone());
+  result.legRest = result.legs.map((part) => part.rotation.clone());
+  return result;
 }
 
 fallback = makePreview();
@@ -129,7 +186,7 @@ modelLoader.load(
   (g) => {
     const model = g.scene;
     fitModel(model);
-    setAvatar(model);
+    setAvatar(model, g.animations);
     document.querySelector('#model-status').textContent = 'Showing your default Saeed model.';
   },
   undefined,
@@ -170,6 +227,10 @@ function speak(text) {
   if (preferred) u.voice = preferred;
   u.rate = 1;
   u.pitch = 1.05;
+  talking = 1;
+  u.onend = () => {
+    talking = 0;
+  };
   speechSynthesis.speak(u);
 }
 
@@ -247,7 +308,7 @@ document.querySelector('#model-upload').onchange = (e) => {
     (g) => {
       const model = g.scene;
       fitModel(model);
-      setAvatar(model);
+      setAvatar(model, g.animations);
       document.querySelector('#model-status').textContent = 'Loaded: ' + file.name;
     },
     undefined,
@@ -265,21 +326,69 @@ function animate() {
   requestAnimationFrame(animate);
 
   const t = performance.now() / 1000;
+  const delta = clock.getDelta();
+  const step = Math.sin(t * 5.2);
+  const oppositeStep = Math.sin(t * 5.2 + Math.PI);
+  const talkingAmount = talking > 0 ? 1 : 0;
+
+  if (t > nextBlink && blink === 0) {
+    blink = 1;
+    nextBlink = t + 2.8 + Math.random() * 3.5;
+  }
+  blink = Math.max(0, blink - 0.16);
+  const blinkAmount = blink > 0.5 ? (blink - 0.5) * 2 : blink * 2;
 
   if (avatar) {
-    avatar.rotation.y = Math.sin(t * 1.1) * 0.12;
-    avatar.position.y = Math.sin(t * 1.7) * 0.06;
+    mixer?.update(delta);
+    avatar.rotation.y = Math.sin(t * 0.7) * 0.045;
+    avatar.rotation.x = Math.sin(t * 2.6) * 0.012;
+    avatar.position.y = walking ? Math.abs(step) * 0.035 : 0;
 
-    if (talking > 0) {
-      avatar.rotation.x = Math.sin(t * 18) * 0.025;
-      talking = Math.max(0, talking - 0.02);
-    } else {
-      avatar.rotation.x = 0;
+    if (walking && rig && !mixer) {
+      rig.legs.forEach((part, index) => {
+        const rest = rig.legRest[index];
+        const stride = index % 2 === 0 ? step : oppositeStep;
+        part.rotation.x = rest.x + stride * 0.32;
+      });
+
+      rig.arms.forEach((part, index) => {
+        const rest = rig.armRest[index];
+        const stride = index % 2 === 0 ? oppositeStep : step;
+        part.rotation.x = rest.x + stride * 0.12;
+        part.rotation.z = rest.z + Math.sin(t * 2.6 + index) * 0.035;
+      });
     }
 
     if (wave > 0) {
-      avatar.rotation.z = Math.sin((1.5 - wave) * Math.PI) * 0.12;
-      wave = Math.max(0, wave - 0.016);
+      const waveProgress = 1 - wave / 1.5;
+      avatar.rotation.z = Math.sin(waveProgress * Math.PI) * 0.035;
+      const wavingArm = rig?.arms[rig.arms.length - 1];
+      if (wavingArm) {
+        wavingArm.rotation.z += Math.sin(t * 12) * 0.45;
+        wavingArm.rotation.x -= 0.5;
+      }
+      wave = Math.max(0, wave - 1 / 60);
+    } else {
+      avatar.rotation.z = 0;
+    }
+
+    rig?.eyes.forEach((eye) => {
+      eye.scale.y = Math.max(0.08, 1 - blinkAmount * 0.92);
+    });
+
+    rig?.mouth.forEach((mouth) => {
+      mouth.scale.y = 0.35 + talkingAmount * (0.18 + Math.abs(Math.sin(t * 14)) * 0.35);
+    });
+
+    rig?.morphs.forEach((mesh) => {
+      Object.entries(mesh.morphTargetDictionary).forEach(([name, index]) => {
+        const lowerName = name.toLowerCase();
+        if (/blink|eye.?close|eyelid/.test(lowerName)) {
+          mesh.morphTargetInfluences[index] = blinkAmount;
+        } else if (/mouth|jaw|viseme|talk|open/.test(lowerName)) {
+          mesh.morphTargetInfluences[index] = talkingAmount * (0.15 + Math.abs(Math.sin(t * 12)) * 0.5);
+        }
+      });
     }
   }
 
