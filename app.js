@@ -35,6 +35,8 @@ let blink = 0;
 let nextBlink = 2.5;
 let rig = null;
 let mixer = null;
+let baseAction = null;
+let waveAction = null;
 const clock = new THREE.Clock();
 const modelLoader = new GLTFLoader();
 
@@ -139,7 +141,18 @@ function setAvatar(model, animations = []) {
   avatar = model;
   rig = createRig(model);
   mixer = animations.length ? new THREE.AnimationMixer(model) : null;
-  if (mixer) mixer.clipAction(animations[0]).play();
+  baseAction = null;
+  waveAction = null;
+  if (mixer) {
+    const baseClip = animations.find((clip) =>
+      /mixamo|idle|walk/i.test(clip.name) && !/wave/i.test(clip.name)
+    ) || animations.find((clip) => !/wave/i.test(clip.name)) || animations[0];
+    const waveClip = animations.find((clip) => /wave/i.test(clip.name) && clip.duration > 0.5);
+
+    baseAction = mixer.clipAction(baseClip);
+    baseAction.setLoop(THREE.LoopRepeat, Infinity).play();
+    waveAction = waveClip ? mixer.clipAction(waveClip) : null;
+  }
   root.add(avatar);
 }
 
@@ -182,7 +195,7 @@ fallback = makePreview();
 setAvatar(fallback);
 
 modelLoader.load(
-  'saeed-model.glb',
+  'T-Pose_model.glb',
   (g) => {
     const model = g.scene;
     fitModel(model);
@@ -289,7 +302,13 @@ document.querySelectorAll('[data-command]').forEach((button) => {
 });
 
 document.querySelector('#wave-button').onclick = () => {
-  wave = 1.5;
+  wave = waveAction ? waveAction.getClip().duration : 1.5;
+  if (waveAction && baseAction) {
+    baseAction.fadeOut(0.2);
+    waveAction.reset().setLoop(THREE.LoopOnce, 1);
+    waveAction.clampWhenFinished = true;
+    waveAction.fadeIn(0.2).play();
+  }
   say('Saeed', 'Hello!');
   speak('Hello!');
 };
@@ -340,9 +359,11 @@ function animate() {
 
   if (avatar) {
     mixer?.update(delta);
-    avatar.rotation.y = Math.sin(t * 0.7) * 0.045;
-    avatar.rotation.x = Math.sin(t * 2.6) * 0.012;
-    avatar.position.y = walking ? Math.abs(step) * 0.035 : 0;
+    if (!mixer) {
+      avatar.rotation.y = Math.sin(t * 0.7) * 0.045;
+      avatar.rotation.x = Math.sin(t * 2.6) * 0.012;
+      avatar.position.y = walking ? Math.abs(step) * 0.035 : 0;
+    }
 
     if (walking && rig && !mixer) {
       rig.legs.forEach((part, index) => {
@@ -360,16 +381,22 @@ function animate() {
     }
 
     if (wave > 0) {
-      const waveProgress = 1 - wave / 1.5;
-      avatar.rotation.z = Math.sin(waveProgress * Math.PI) * 0.035;
-      const wavingArm = rig?.arms[rig.arms.length - 1];
-      if (wavingArm) {
-        wavingArm.rotation.z += Math.sin(t * 12) * 0.45;
-        wavingArm.rotation.x -= 0.5;
+      if (!mixer) {
+        const waveProgress = 1 - wave / 1.5;
+        avatar.rotation.z = Math.sin(waveProgress * Math.PI) * 0.035;
+        const wavingArm = rig?.arms[rig.arms.length - 1];
+        if (wavingArm) {
+          wavingArm.rotation.z += Math.sin(t * 12) * 0.45;
+          wavingArm.rotation.x -= 0.5;
+        }
       }
-      wave = Math.max(0, wave - 1 / 60);
+      wave = Math.max(0, wave - delta);
+      if (wave === 0 && waveAction && baseAction) {
+        waveAction.fadeOut(0.2);
+        baseAction.reset().fadeIn(0.2).play();
+      }
     } else {
-      avatar.rotation.z = 0;
+      if (!mixer) avatar.rotation.z = 0;
     }
 
     rig?.eyes.forEach((eye) => {
