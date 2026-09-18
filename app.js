@@ -54,6 +54,8 @@ let rig = null;
 let mixer = null;
 let baseAction = null;
 let waveAction = null;
+let jumping = 0;
+let avatarBaseY = 0;
 const clock = new THREE.Clock();
 const modelLoader = new GLTFLoader();
 
@@ -156,6 +158,7 @@ function setAvatar(model, animations = []) {
   if (avatar) root.remove(avatar);
   if (mixer) mixer.stopAllAction();
   avatar = model;
+  avatarBaseY = avatar.position.y;
   rig = createRig(model);
   mixer = animations.length ? new THREE.AnimationMixer(model) : null;
   baseAction = null;
@@ -293,11 +296,30 @@ function respond(text) {
   }
 
   if (q.includes('wave')) {
-    wave = 1.5;
+    triggerWave();
     return 'Of course. Hello!';
   }
 
+  if (q.includes('jump')) {
+    triggerJump();
+    return 'Here I go!';
+  }
+
   return 'I can greet you, tell jokes, show the time and date, wave, and preview your 3D model.';
+}
+
+function triggerJump() {
+  if (jumping === 0) jumping = 0.9;
+}
+
+function triggerWave() {
+  wave = waveAction ? waveAction.getClip().duration : 1.5;
+  if (waveAction && baseAction) {
+    baseAction.fadeOut(0.2);
+    waveAction.reset().setLoop(THREE.LoopOnce, 1);
+    waveAction.clampWhenFinished = true;
+    waveAction.fadeIn(0.2).play();
+  }
 }
 
 function send(text) {
@@ -324,15 +346,15 @@ document.querySelectorAll('[data-command]').forEach((button) => {
 });
 
 document.querySelector('#wave-button').onclick = () => {
-  wave = waveAction ? waveAction.getClip().duration : 1.5;
-  if (waveAction && baseAction) {
-    baseAction.fadeOut(0.2);
-    waveAction.reset().setLoop(THREE.LoopOnce, 1);
-    waveAction.clampWhenFinished = true;
-    waveAction.fadeIn(0.2).play();
-  }
+  triggerWave();
   say('Saeed', 'Hello!');
   speak('Hello!');
+};
+
+document.querySelector('#jump-button').onclick = () => {
+  triggerJump();
+  say('Saeed', 'Here I go!');
+  speak('Here I go!');
 };
 
 document.querySelector('#mute-button').onclick = (e) => {
@@ -385,6 +407,14 @@ function animate() {
       avatar.rotation.y = Math.sin(t * 0.7) * 0.045;
       avatar.rotation.x = Math.sin(t * 2.6) * 0.012;
       avatar.position.y = walking ? Math.abs(step) * 0.035 : 0;
+    }
+
+    if (jumping > 0) {
+      const progress = 1 - jumping / 0.9;
+      avatar.position.y = avatarBaseY + Math.sin(progress * Math.PI) * 0.65;
+      jumping = Math.max(0, jumping - delta);
+    } else if (mixer) {
+      avatar.position.y = avatarBaseY;
     }
 
     if (walking && rig && !mixer) {
