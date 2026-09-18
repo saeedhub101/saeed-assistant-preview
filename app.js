@@ -2,6 +2,23 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const canvas = document.querySelector('#scene');
+let startupError = null;
+
+function reportRuntimeError(message) {
+  startupError = message;
+  const status = document.querySelector('#model-status');
+  if (status) status.textContent = `Preview error: ${message}`;
+  console.error(message);
+}
+
+window.addEventListener('error', (event) => {
+  reportRuntimeError(event.message || 'The preview could not start.');
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  reportRuntimeError(event.reason?.message || 'The preview could not start.');
+});
+
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
@@ -143,15 +160,20 @@ function setAvatar(model, animations = []) {
   mixer = animations.length ? new THREE.AnimationMixer(model) : null;
   baseAction = null;
   waveAction = null;
-  if (mixer) {
+  if (mixer && animations.length) {
     const baseClip = animations.find((clip) =>
       /mixamo|idle|walk/i.test(clip.name) && !/wave/i.test(clip.name)
     ) || animations.find((clip) => !/wave/i.test(clip.name)) || animations[0];
     const waveClip = animations.find((clip) => /wave/i.test(clip.name) && clip.duration > 0.5);
 
-    baseAction = mixer.clipAction(baseClip);
-    baseAction.setLoop(THREE.LoopRepeat, Infinity).play();
-    waveAction = waveClip ? mixer.clipAction(waveClip) : null;
+    try {
+      baseAction = mixer.clipAction(baseClip);
+      baseAction.setLoop(THREE.LoopRepeat, Infinity).play();
+      waveAction = waveClip ? mixer.clipAction(waveClip) : null;
+    } catch (error) {
+      mixer = null;
+      reportRuntimeError(`Animation setup failed: ${error.message}`);
+    }
   }
   root.add(avatar);
 }
