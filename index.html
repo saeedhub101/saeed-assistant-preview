@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Saeed - personal 3D assistant preview" />
+  <title>Saeed Assistant</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="avatar-panel">
+      <div class="brand"><span class="status-dot"></span><strong>Saeed</strong><span>3D Assistant</span></div>
+      <canvas id="scene" aria-label="Saeed 3D avatar"></canvas>
+      <div class="avatar-actions">
+        <label class="button secondary" for="model-upload">Load my 3D model</label>
+        <input id="model-upload" type="file" accept=".glb,.gltf" />
+        <button id="wave-button" class="button">Wave</button>
+      </div>
+      <p id="model-status" class="hint">Showing the Saeed preview character. Load your GLB to see your real avatar.</p>
+    </section>
+    <section class="chat-panel">
+      <div id="chat-log" class="chat-log" aria-live="polite"></div>
+      <div class="quick-actions">
+        <button data-command="hello">Hello</button>
+        <button data-command="Tell me a joke">Joke</button>
+        <button data-command="What time is it?">Time</button>
+      </div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" autocomplete="off" placeholder="Talk to Saeed..." />
+        <button class="button" type="submit">Send</button>
+      </form>
+      <div class="toolbar">
+        <button id="mute-button">Mute voice</button>
+        <span>Browser preview mode</span>
+      </div>
+    </section>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.166.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.166.1/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
