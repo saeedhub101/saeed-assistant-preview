@@ -56,6 +56,7 @@ let baseAction = null;
 let waveAction = null;
 let jumping = 0;
 let avatarBaseY = 0;
+let emotion = 'neutral';
 const clock = new THREE.Clock();
 const modelLoader = new GLTFLoader();
 
@@ -185,6 +186,7 @@ function createRig(model) {
   const result = {
     arms: [],
     legs: [],
+    head: null,
     eyes: [],
     mouth: [],
     morphs: []
@@ -201,6 +203,7 @@ function createRig(model) {
   model.traverse((object) => {
     const name = names(object);
     if (object.isBone) {
+      if (/head|neck/i.test(name) && !result.head) result.head = object;
       if (/arm|hand|shoulder/.test(name)) result.arms.push(object);
       if (/leg|thigh|shin|foot/.test(name)) result.legs.push(object);
     }
@@ -213,6 +216,7 @@ function createRig(model) {
 
   result.armRest = result.arms.map((part) => part.rotation.clone());
   result.legRest = result.legs.map((part) => part.rotation.clone());
+  result.headRest = result.head ? result.head.rotation.clone() : null;
   return result;
 }
 
@@ -305,6 +309,26 @@ function respond(text) {
     return 'Here I go!';
   }
 
+  if (q.includes('happy') || q.includes('smile')) {
+    setEmotion('happy');
+    return 'I feel happy!';
+  }
+
+  if (q.includes('sad')) {
+    setEmotion('sad');
+    return 'I feel a little sad.';
+  }
+
+  if (q.includes('angry')) {
+    setEmotion('angry');
+    return 'I am feeling angry.';
+  }
+
+  if (q.includes('neutral') || q.includes('normal')) {
+    setEmotion('neutral');
+    return 'Back to normal.';
+  }
+
   return 'I can greet you, tell jokes, show the time and date, wave, and preview your 3D model.';
 }
 
@@ -320,6 +344,12 @@ function triggerWave() {
     waveAction.clampWhenFinished = true;
     waveAction.fadeIn(0.2).play();
   }
+}
+
+function setEmotion(nextEmotion) {
+  emotion = nextEmotion;
+  const status = document.querySelector('#model-status');
+  if (status) status.textContent = `Emotion: ${emotion}`;
 }
 
 function send(text) {
@@ -355,6 +385,13 @@ document.querySelector('#jump-button').onclick = () => {
   triggerJump();
   say('Saeed', 'Here I go!');
   speak('Here I go!');
+};
+
+document.querySelector('#walk-button').onclick = (event) => {
+  walking = !walking;
+  event.currentTarget.textContent = `Walk: ${walking ? 'on' : 'off'}`;
+  if (walking && baseAction) baseAction.play();
+  if (!walking && baseAction) baseAction.paused = true;
 };
 
 document.querySelector('#mute-button').onclick = (e) => {
@@ -415,6 +452,20 @@ function animate() {
       jumping = Math.max(0, jumping - delta);
     } else if (mixer) {
       avatar.position.y = avatarBaseY;
+    }
+
+    if (rig?.head) {
+      const emotionPose = {
+        neutral: { x: 0, y: 0, z: 0 },
+        happy: { x: -0.04, y: 0.08, z: -0.03 },
+        sad: { x: 0.12, y: -0.05, z: 0.04 },
+        angry: { x: -0.03, y: -0.08, z: 0.02 }
+      }[emotion];
+      rig.head.rotation.set(
+        rig.headRest.x + emotionPose.x,
+        rig.headRest.y + emotionPose.y,
+        rig.headRest.z + emotionPose.z
+      );
     }
 
     if (walking && rig && !mixer) {
