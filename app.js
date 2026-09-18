@@ -438,7 +438,7 @@ function animate() {
           mesh.morphTargetInfluences[index] = talkingAmount * (0.15 + Math.abs(Math.sin(t * 12)) * 0.5);
         }
       });
-    }
+    });
   }
 
   renderer.render(scene, camera);
