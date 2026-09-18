@@ -165,14 +165,9 @@ function setAvatar(model, animations = []) {
   baseAction = null;
   waveAction = null;
   if (mixer && animations.length) {
-    const baseClip = animations.find((clip) =>
-      /mixamo|idle|walk/i.test(clip.name) && !/wave/i.test(clip.name)
-    ) || animations.find((clip) => !/wave/i.test(clip.name)) || animations[0];
     const waveClip = animations.find((clip) => /wave/i.test(clip.name) && clip.duration > 0.5);
 
     try {
-      baseAction = mixer.clipAction(baseClip);
-      baseAction.setLoop(THREE.LoopRepeat, Infinity).play();
       waveAction = waveClip ? mixer.clipAction(waveClip) : null;
     } catch (error) {
       mixer = null;
@@ -338,8 +333,8 @@ function triggerJump() {
 
 function triggerWave() {
   wave = waveAction ? waveAction.getClip().duration : 1.5;
-  if (waveAction && baseAction) {
-    baseAction.fadeOut(0.2);
+  if (waveAction) {
+    if (baseAction) baseAction.fadeOut(0.2);
     waveAction.reset().setLoop(THREE.LoopOnce, 1);
     waveAction.clampWhenFinished = true;
     waveAction.fadeIn(0.2).play();
@@ -468,7 +463,7 @@ function animate() {
       );
     }
 
-    if (walking && rig && !mixer) {
+    if (walking && rig && !baseAction) {
       rig.legs.forEach((part, index) => {
         const rest = rig.legRest[index];
         const stride = index % 2 === 0 ? step : oppositeStep;
