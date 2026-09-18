@@ -110,7 +110,7 @@ function fitModel(model) {
   model.scale.setScalar(scale);
   model.position.set(
     -center.x * scale,
-    -box.min.y * scale - 2.15,
+    -box.min.y * scale,
     -center.z * scale
   );
 }
