@@ -45,8 +45,22 @@
 
       <div class="settings-body">
         <label class="setting-row"><input id="toggle-sound" type="checkbox" checked /> Sound enabled</label>
-        <label class="setting-row"><input id="toggle-animations" type="checkbox" checked /> Animations enabled</label>
-        <label class="setting-row"><input id="toggle-idle-walk" type="checkbox" checked /> Idle walking</label>
+        <label class="setting-row"><input id="toggle-animations" type="checkbox" /> Animations enabled</label>
+        <label class="setting-row"><input id="toggle-idle-walk" type="checkbox" /> Idle walking</label>
+
+        <div class="setting-group">
+          <label for="voice-select">Voice</label>
+          <select id="voice-select" class="setting-select">
+            <option value="">Loading available voices...</option>
+          </select>
+          <small class="setting-help">Male voices are preferred when the browser provides voice metadata.</small>
+        </div>
+
+        <div class="setting-group">
+          <label for="character-file">Character model</label>
+          <input id="character-file" type="file" accept=".glb,.fbx" />
+          <small class="setting-help">Upload a GLB or FBX file to replace Saeed for this browser session.</small>
+        </div>
 
         <div class="setting-group">
           <label for="size-slider">Character size</label>

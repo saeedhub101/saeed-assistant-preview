@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 const canvas = document.querySelector('#scene');
 const contextMenu = document.querySelector('#context-menu');
@@ -18,6 +19,8 @@ const volumeSlider = document.querySelector('#volume-slider');
 const sizeValue = document.querySelector('#size-value');
 const textValue = document.querySelector('#text-value');
 const volumeValue = document.querySelector('#volume-value');
+const voiceSelect = document.querySelector('#voice-select');
+const characterFile = document.querySelector('#character-file');
 const gmailInput = document.querySelector('#gmail-input');
 const accountStatus = document.querySelector('#account-status');
 const voiceStatus = document.querySelector('#voice-status');
@@ -43,7 +46,9 @@ scene.add(root);
 
 const clock = new THREE.Clock();
 const modelLoader = new GLTFLoader();
+const fbxLoader = new FBXLoader();
 const defaultModelPath = 'Saeed_AI.glb';
+let availableVoices = [];
 
 let avatar = null;
 let rig = null;
@@ -54,14 +59,11 @@ let waveAction = null;
 let idleWalkDirection = 1;
 let lastInteraction = Date.now();
 let boredNoticeSent = false;
-let dragActive = false;
-let startedDragOnAvatar = false;
-
 const state = {
   talking: 0,
   voiceEnabled: true,
-  animationsEnabled: true,
-  idleWalkingEnabled: true,
+  animationsEnabled: false,
+  idleWalkingEnabled: false,
   avatarMood: 'neutral',
   autoWalk: false,
   lastIdleSpeech: 0,
@@ -71,7 +73,8 @@ const state = {
   idleTimer: 0,
   avatarScale: 1,
   textScale: 1,
-  voiceVolume: 1
+  voiceVolume: 1,
+  voiceName: ''
 };
 
 const screenBounds = { minX: -5.2, maxX: 5.2 };
@@ -97,24 +100,53 @@ function say(who, text) {
   chatLog.scrollTop = chatLog.scrollHeight;
 }
 
+function isLikelyMaleVoice(voice) {
+  return /male|man|david|daniel|mark|tom|john|guy|harry|liam|alex|ahmed|karim|zayd|salim|omar/i.test(voice.name);
+}
+
+function getPreferredVoice() {
+  return availableVoices.find((voice) => voice.name === state.voiceName)
+    || availableVoices.find((voice) => isLikelyMaleVoice(voice) && /ar|en/i.test(voice.lang))
+    || availableVoices.find((voice) => isLikelyMaleVoice(voice))
+    || availableVoices.find((voice) => /ar|en/i.test(voice.lang))
+    || availableVoices[0];
+}
+
+function populateVoiceOptions() {
+  if (!('speechSynthesis' in window)) return;
+
+  availableVoices = speechSynthesis.getVoices().slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!availableVoices.length) return;
+
+  const preferred = getPreferredVoice();
+  voiceSelect.replaceChildren();
+  availableVoices.forEach((voice) => {
+    const option = document.createElement('option');
+    option.value = voice.name;
+    option.textContent = `${voice.name} (${voice.lang})`;
+    voiceSelect.appendChild(option);
+  });
+
+  if (!state.voiceName && preferred) state.voiceName = preferred.name;
+  voiceSelect.value = state.voiceName || preferred?.name || '';
+  voiceStatus.textContent = preferred?.name || 'Auto';
+}
+
 function speak(text) {
   if (!state.voiceEnabled || !('speechSynthesis' in window)) return;
   const utterance = new SpeechSynthesisUtterance(text);
-  const voices = speechSynthesis.getVoices();
-  const arabicMale = voices.find(v => /ar/i.test(v.lang) && /male|man|ahmed|karim|zayd|salim|omar/i.test(v.name));
-  const englishMale = voices.find(v => /en/i.test(v.lang) && /male|man|david|daniel|mark|tom|john|guy|harry|liam|alex/i.test(v.name));
-  const preferred = arabicMale || englishMale || voices.find(v => /ar|en/i.test(v.lang)) || voices[0];
+  const preferred = getPreferredVoice();
 
   if (preferred) {
     utterance.voice = preferred;
     utterance.lang = preferred.lang;
-    voiceStatus.textContent = preferred.lang.toUpperCase();
+    voiceStatus.textContent = preferred.name;
   } else {
     voiceStatus.textContent = 'Auto';
   }
 
   utterance.rate = 0.9;
-  utterance.pitch = 0.9;
+  utterance.pitch = 0.82;
   utterance.volume = Math.max(0, Math.min(1, state.voiceVolume));
   state.talking = 1;
   utterance.onend = () => {
@@ -287,7 +319,7 @@ function setAvatar(model, animations = []) {
     if (idleClip) {
       baseAction = mixer.clipAction(idleClip);
       baseAction.setLoop(THREE.LoopRepeat);
-      baseAction.play();
+      if (state.animationsEnabled) baseAction.play();
     }
 
     if (waveClip) {
@@ -298,12 +330,42 @@ function setAvatar(model, animations = []) {
   root.add(avatar);
 }
 
-function handleModelLoad(gltf) {
+function handleModelLoad(gltf, label = 'Saeed 3D') {
   const model = gltf.scene;
   fitModel(model);
   setAvatar(model, gltf.animations);
   setStatus('Saeed live');
-  showToast('Saeed 3D loaded');
+  showToast(`${label} loaded`);
+}
+
+function loadCharacterFile(file) {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  if (!['glb', 'fbx'].includes(extension)) {
+    showToast('Choose a GLB or FBX character file');
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  const onLoad = (result) => {
+    const gltf = extension === 'fbx'
+      ? { scene: result, animations: result.animations || [] }
+      : result;
+    handleModelLoad(gltf, file.name);
+    URL.revokeObjectURL(objectUrl);
+  };
+  const onError = (error) => {
+    console.error(`Could not load character file ${file.name}.`, error);
+    setStatus('Character load failed');
+    showToast(`Could not load ${file.name}`);
+    URL.revokeObjectURL(objectUrl);
+  };
+
+  setStatus('Loading character');
+  if (extension === 'fbx') {
+    fbxLoader.load(objectUrl, onLoad, undefined, onError);
+  } else {
+    modelLoader.load(objectUrl, onLoad, undefined, onError);
+  }
 }
 
 const fallbackAvatar = buildFallbackAvatar();
@@ -363,8 +425,7 @@ contextMenu.addEventListener('click', (event) => {
   }
   if (action === 'settings') openSettings();
   if (action === 'walk') {
-    state.autoWalk = !state.autoWalk;
-    showToast(state.autoWalk ? 'Walking mode on' : 'Walking mode off');
+    showToast('Character movement is coming in the next version');
     clearContextMenu();
   }
 });
@@ -388,8 +449,7 @@ chatForm.addEventListener('submit', (event) => {
   else if (/(gmail|calendar|meeting|reminder|birthday)/.test(q)) reply = state.gmailConnected ? 'Your calendar is connected. I can remind you before meetings and birthdays.' : 'Please connect your Gmail in Settings so I can manage reminders and calendar events.';
   else if (/(arabic|مرحبا|السلام)/.test(q)) reply = 'مرحبا، أنا سعيد، مساعدك الرقمي، وأنا أستطيع التحدث بالعربية أو الإنجليزية.';
   else if (/(walk|move|around)/.test(q)) {
-    state.autoWalk = true;
-    reply = 'I am walking around the desktop now.';
+    reply = 'Character movement will be added in the next version.';
   }
 
   say('Saeed', reply);
@@ -436,7 +496,21 @@ toggleAnimations.addEventListener('change', () => {
 
 toggleIdleWalk.addEventListener('change', () => {
   state.idleWalkingEnabled = toggleIdleWalk.checked;
+  if (!state.idleWalkingEnabled) state.autoWalk = false;
   showToast(state.idleWalkingEnabled ? 'Idle walk on' : 'Idle walk off');
+});
+
+voiceSelect.addEventListener('change', () => {
+  state.voiceName = voiceSelect.value;
+  const selected = getPreferredVoice();
+  voiceStatus.textContent = selected?.name || 'Auto';
+  showToast(`Voice: ${selected?.name || 'Auto'}`);
+});
+
+characterFile.addEventListener('change', (event) => {
+  const [file] = event.target.files;
+  if (file) loadCharacterFile(file);
+  event.target.value = '';
 });
 
 sizeSlider.addEventListener('input', (event) => {
@@ -475,10 +549,11 @@ applyDisplaySettings();
 say('System', 'Saeed is online.');
 say('Saeed', 'Hello, I am ready to help.');
 if ('speechSynthesis' in window) {
-  speechSynthesis.onvoiceschanged = () => speak('Hello, I am Saeed.');
+  speechSynthesis.onvoiceschanged = populateVoiceOptions;
+  populateVoiceOptions();
 }
 
-function updateAvatarPose(delta, t) {
+function updateAvatarPose(delta) {
   if (!avatar) return;
 
   if (state.animationsEnabled && mixer) {
@@ -510,81 +585,10 @@ function updateAvatarPose(delta, t) {
     );
   }
 
-  if (rig?.arms && rig.armRest && !state.animationsEnabled) {
-    const sway = Math.sin(t * 2.4) * 0.12;
-    rig.arms.forEach((part, index) => {
-      const rest = rig.armRest[index];
-      if (rest) {
-        part.rotation.x = rest.x + sway * (index % 2 === 0 ? 1 : -1);
-        part.rotation.z = rest.z + (index % 2 === 0 ? 0.75 : -0.75);
-      }
-    });
-  }
-
-  if (rig?.legs && rig.legRest && !state.animationsEnabled) {
-    const step = Math.sin(t * 2.2) * 0.26;
-    rig.legs.forEach((part, index) => {
-      const rest = rig.legRest[index];
-      if (rest) {
-        part.rotation.x = rest.x + (index % 2 === 0 ? step : -step) * 0.8;
-      }
-    });
-  }
-
-  if (rig?.eyes?.length) {
-    const blink = Math.sin(t * 9.5) > 0.97 ? 0.1 : 1;
-    rig.eyes.forEach((mesh) => {
-      mesh.scale.y = blink;
-    });
-  }
-
-  if (rig?.mouth?.length) {
-    const mouthMotion = 0.35 + state.talking * (0.2 + Math.abs(Math.sin(t * 18)) * 0.3);
-    rig.mouth.forEach((mesh) => {
-      mesh.scale.y = mouthMotion;
-    });
-  }
-}
-
-function updateAutoWalk(delta) {
-  if (!state.autoWalk || !avatar) return;
-
-  avatar.position.x += idleWalkDirection * delta * 0.8;
-
-  if (avatar.position.x > screenBounds.maxX) {
-    avatar.position.x = screenBounds.maxX;
-    idleWalkDirection = -1;
-  }
-
-  if (avatar.position.x < screenBounds.minX) {
-    avatar.position.x = screenBounds.minX;
-    idleWalkDirection = 1;
-  }
 }
 
 function handleIdleBehavior() {
-  const now = Date.now();
-  const idleSeconds = (now - lastInteraction) / 1000;
-
-  if (state.snoozedUntil > now) return;
-
-  if (idleSeconds > 5 && state.idleWalkingEnabled) {
-    state.autoWalk = true;
-  }
-
-  if (idleSeconds > 60 && !boredNoticeSent) {
-    boredNoticeSent = true;
-    showToast('Saeed is getting bored');
-    speak('Hey, I am getting bored. Let me know if you want me to walk around or chat.');
-  }
-
-  if (idleSeconds > 300) {
-    state.autoWalk = true;
-    if (now - state.lastIdleSpeech > 120000) {
-      state.lastIdleSpeech = now;
-      speak('Hey, I am here. I can walk, talk, and help you.');
-    }
-  }
+  state.autoWalk = false;
 }
 
 function resizeRenderer() {
@@ -598,42 +602,12 @@ function resizeRenderer() {
 window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
 
-let dragStart = null;
-canvas.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0) return;
-  dragStart = { x: event.clientX, y: event.clientY, avatarX: avatar?.position.x || 0 }; 
-  startedDragOnAvatar = true;
-  dragActive = true;
-  state.lastInteraction = Date.now();
-});
-
-window.addEventListener('pointermove', (event) => {
-  if (!dragActive || !avatar) return;
-
-  const dx = event.clientX - dragStart.x;
-  const nextX = dragStart.avatarX + (dx / window.innerWidth) * 12;
-  avatar.position.x = Math.min(screenBounds.maxX, Math.max(screenBounds.minX, nextX));
-});
-
-window.addEventListener('pointerup', () => {
-  dragActive = false;
-  dragStart = null;
-  startedDragOnAvatar = false;
-});
-
 function animate() {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.033);
   const t = performance.now() / 1000;
 
-  handleIdleBehavior();
-  updateAutoWalk(delta);
-  updateAvatarPose(delta, t);
-
-  if (!state.autoWalk && avatar && !state.animationsEnabled) {
-    avatar.rotation.y = Math.sin(t * 1.3) * 0.2;
-    avatar.position.y = Math.sin(t * 3.2) * 0.05;
-  }
+  updateAvatarPose(delta);
 
   renderer.render(scene, camera);
 }

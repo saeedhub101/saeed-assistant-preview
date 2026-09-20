@@ -190,7 +190,9 @@ body {
 }
 
 .chat-form input,
-.gmail-row input {
+.gmail-row input,
+.setting-select,
+#character-file {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -198,6 +200,21 @@ body {
   color: var(--text);
   padding: 10px 12px;
   font: inherit;
+}
+
+.setting-select,
+#character-file {
+  width: 100%;
+}
+
+.setting-select {
+  appearance: auto;
+}
+
+.setting-help {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .chat-form button,
