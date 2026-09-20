@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Saeed - personal 3D assistant desktop" />
+  <title>Saeed Assistant</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="desktop" aria-label="Desktop assistant workspace">
+    <canvas id="scene" aria-label="Saeed 3D avatar"></canvas>
+
+    <div id="status-pill" class="status-pill">
+      <span class="dot"></span>
+      Saeed online
+    </div>
+
+    <div id="context-menu" class="context-menu hidden" role="menu" aria-label="Desktop menu">
+      <button class="menu-item" data-action="chat">Chat with Saeed</button>
+      <button class="menu-item" data-action="hello">Say hello</button>
+      <button class="menu-item" data-action="mute">Mute</button>
+      <button class="menu-item" data-action="snooze">Snooze 2 hours</button>
+      <button class="menu-item" data-action="settings">Settings</button>
+      <button class="menu-item" data-action="walk">Walk around</button>
+    </div>
+
+    <section id="chat-window" class="window hidden" aria-label="Assistant chat">
+      <div class="window-header">
+        <strong>Saeed Chat</strong>
+        <button type="button" class="window-close" data-close="chat" aria-label="Close chat">×</button>
+      </div>
+      <div id="chat-log" class="chat-log" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" autocomplete="off" placeholder="Ask Saeed..." />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <section id="settings-window" class="window hidden" aria-label="Assistant settings">
+      <div class="window-header">
+        <strong>Settings</strong>
+        <button type="button" class="window-close" data-close="settings" aria-label="Close settings">×</button>
+      </div>
+
+      <div class="settings-body">
+        <label class="setting-row"><input id="toggle-sound" type="checkbox" checked /> Sound enabled</label>
+        <label class="setting-row"><input id="toggle-animations" type="checkbox" checked /> Animations enabled</label>
+        <label class="setting-row"><input id="toggle-idle-walk" type="checkbox" checked /> Idle walking</label>
+
+        <div class="setting-group">
+          <label for="size-slider">Character size</label>
+          <div class="range-row">
+            <input id="size-slider" type="range" min="0.7" max="1.6" step="0.05" value="1" />
+            <span id="size-value">100%</span>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label for="text-slider">Text size</label>
+          <div class="range-row">
+            <input id="text-slider" type="range" min="0.8" max="1.5" step="0.05" value="1" />
+            <span id="text-value">100%</span>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label for="volume-slider">Voice volume</label>
+          <div class="range-row">
+            <input id="volume-slider" type="range" min="0" max="1" step="0.05" value="1" />
+            <span id="volume-value">100%</span>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label for="gmail-input">Gmail calendar</label>
+          <div class="gmail-row">
+            <input id="gmail-input" type="email" placeholder="you@gmail.com" />
+            <button type="button" id="connect-gmail">Connect</button>
+          </div>
+        </div>
+
+        <div class="setting-group muted-panel">
+          <div>Voice: <strong id="voice-status">Auto</strong></div>
+          <div id="account-status">No Gmail connected</div>
+        </div>
+      </div>
+    </section>
+
+    <div id="toast" class="toast hidden" aria-live="polite"></div>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.166.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.166.1/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
