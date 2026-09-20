@@ -43,6 +43,7 @@ scene.add(root);
 
 const clock = new THREE.Clock();
 const modelLoader = new GLTFLoader();
+const defaultModelPath = 'Saeed_AI.glb';
 
 let avatar = null;
 let rig = null;
@@ -309,7 +310,7 @@ const fallbackAvatar = buildFallbackAvatar();
 setAvatar(fallbackAvatar);
 
 modelLoader.load(
-  'saeed-3d.glb',
+  defaultModelPath,
   handleModelLoad,
   undefined,
   (error) => {
