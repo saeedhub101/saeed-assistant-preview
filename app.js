@@ -238,21 +238,6 @@ function fitModel(model) {
   model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
 }
 
-function normalizePose(model) {
-  model.traverse((object) => {
-    const name = (object.name || '').toLowerCase();
-
-    if (object.isBone && /(arm|upperarm|forearm|hand|shoulder)/i.test(name)) {
-      object.rotation.x = 0.12;
-      object.rotation.z = /left|l/.test(name) ? 0.82 : -0.82;
-    }
-
-    if (object.isBone && /(leg|shin|thigh|foot)/i.test(name)) {
-      object.rotation.x = 0.08;
-    }
-  });
-}
-
 function createRig(model) {
   const result = {
     arms: [],
@@ -297,7 +282,6 @@ function setAvatar(model, animations = []) {
 
   avatar = model;
   avatar.position.set(0, 0, 0);
-  normalizePose(avatar);
 
   rig = createRig(model);
   mixer = animations.length ? new THREE.AnimationMixer(model) : null;
