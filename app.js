@@ -47,7 +47,7 @@ scene.add(root);
 const clock = new THREE.Clock();
 const modelLoader = new GLTFLoader();
 const fbxLoader = new FBXLoader();
-const defaultModelPath = 'Saeed_AI.glb';
+const defaultModelPath = 'saeed.ai.glb';
 let availableVoices = [];
 
 let avatar = null;
